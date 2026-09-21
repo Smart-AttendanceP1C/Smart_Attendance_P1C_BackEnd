@@ -1,0 +1,232 @@
+openapi: 3.0.3
+
+info:
+  title: Smart Attendance API
+  description: API specification for the Smart Attendance system.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Authentication
+  - name: Users
+  - name: Courses
+  - name: Sections
+  - name: Students
+  - name: Staff
+  - name: Timetable
+  - name: Attendance Sessions
+
+paths:
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+        '401':
+          description: Invalid email or password
+        '400':
+          description: Validation error
+
+  /api/v1/users:
+    get:
+      tags:
+        - Users
+      summary: Get all users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Users retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+
+  /api/v1/courses:
+    get:
+      tags:
+        - Courses
+      summary: Get all courses
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Courses retrieved successfully
+        '401':
+          description: Authentication required
+
+  /api/v1/sections:
+    get:
+      tags:
+        - Sections
+      summary: Get all sections
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sections retrieved successfully
+        '401':
+          description: Authentication required
+
+  /api/v1/sections/{sectionId}/students:
+    get:
+      tags:
+        - Sections
+      summary: Get students enrolled in a section
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sectionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Students retrieved successfully
+        '401':
+          description: Authentication required
+        '404':
+          description: Section not found
+
+  /api/v1/students/me/attendance:
+    get:
+      tags:
+        - Students
+      summary: Get current student's attendance records
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Attendance records retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+
+  /api/v1/staff:
+    get:
+      tags:
+        - Staff
+      summary: Get all teaching staff
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Staff retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+
+  /api/v1/timetable:
+    get:
+      tags:
+        - Timetable
+      summary: Get timetable
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Timetable retrieved successfully
+        '401':
+          description: Authentication required
+
+  /api/v1/attendance/sessions:
+    post:
+      tags:
+        - Attendance Sessions
+      summary: Open an attendance session
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenSessionRequest'
+      responses:
+        '201':
+          description: Attendance session opened successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Staff is not assigned to the section
+        '404':
+          description: Timetable not found
+        '409':
+          description: Attendance session already open
+
+  /api/v1/attendance/sessions/{sessionId}/close:
+    patch:
+      tags:
+        - Attendance Sessions
+      summary: Close an attendance session
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Attendance session closed successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: User did not open the session
+        '404':
+          description: Attendance session not found
+        '409':
+          description: Attendance session is not open
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: staff1@bua.edu.eg
+        password:
+          type: string
+          format: password
+          example: Password123!
+
+    OpenSessionRequest:
+      type: object
+      required:
+        - timetable_id
+      properties:
+        timetable_id:
+          type: integer
+          example: 5
