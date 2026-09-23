@@ -210,50 +210,34 @@ paths:
 # -------------------------
 # AI Risk
 # -------------------------
-
-  /api/v1/students/me/risk-features:
+  /api/v1/staff/me/sections/{sectionId}/risk:
     get:
       tags: [AI Risk]
-      summary: Get current student's attendance risk features
+      summary: Get weekly attendance risk for students in a section
       description: |
-        Calculates the attendance features used by the weekly
-        attendance risk model for the current student.
-      security: [{ bearerAuth: [] }]
+        Calculates weekly attendance risk for all students enrolled
+        in a section assigned to the authenticated lecturer or TA.
+        The result is advisory and does not automatically modify attendance.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sectionId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID of the section assigned to the authenticated staff member.
       responses:
         '200':
-          description: Risk features calculated successfully
+          description: Weekly attendance risk retrieved successfully
         '401':
           description: Authentication required
         '403':
-          description: Student access required
+          description: Staff access required or section is not assigned to the current staff member
         '404':
-          description: Student is not enrolled in an active section
+          description: Section not found
         '500':
           description: Internal server error
-
-# Weekly Risk Prediction
-
-  /api/v1/students/me/risk:
-    get:
-      tags: [AI Risk]
-      summary: Get current student's weekly attendance risk
-      description: |
-        Calculates the student's attendance risk features and sends
-        them to the weekly attendance risk AI service.
-        The result is advisory and does not automatically modify attendance.
-      security: [{ bearerAuth: [] }]
-      responses:
-        '200':
-          description: Weekly attendance risk calculated successfully
-        '401':
-          description: Authentication required
-        '403':
-          description: Student access required
-        '404':
-          description: Student is not enrolled in an active section
-        '502':
-          description: AI service unavailable or returned an error
-
 # =========================
 # Staff
 # =========================
