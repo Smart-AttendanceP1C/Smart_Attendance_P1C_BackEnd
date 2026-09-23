@@ -1573,13 +1573,16 @@ app.get(
 
       const prediction = await predictWeeklyRisk(features);
 
-      return ok(res, {
-        student_id: studentId,
-        section_id: sectionId,
-        week_number: weekNumber,
-        features,
-        risk: prediction,
-      });
+      return res.status(200).json({
+  success: true,
+  data: {
+    student_id: studentId,
+    section_id: sectionId,
+    week_number: weekNumber,
+    features,
+    risk: prediction,
+  },
+});
     } catch (error) {
   console.error("Weekly risk error:", error);
   console.error("AI service error message:", error.message);
