@@ -1,4 +1,8 @@
 const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const yaml = require("js-yaml");
+const swaggerUi = require("swagger-ui-express");
 const pool = require("./db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -11,6 +15,19 @@ const authenticateToken = require("./middleware/authMiddleware");
 const authorizeRole = require("./middleware/roleMiddleware");
 
 const app = express();
+// =========================================================
+// SWAGGER UI
+// =========================================================
+
+const openapiPath = path.join(__dirname, "..", "openapi.yaml");
+const openapiFile = fs.readFileSync(openapiPath, "utf8");
+const openapiDocument = yaml.load(openapiFile);
+
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(openapiDocument)
+);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -1442,39 +1459,60 @@ function scanRateLimit(req, res, next) {
   next();
 }
 
+// =========================================================
+// INSTRUCTOR AI RISK - ALL STUDENTS IN SECTION
+// =========================================================
+
 app.get(
-  "/api/v1/students/me/risk-features",
+  "/api/v1/staff/me/sections/:sectionId/risk",
   authenticateToken,
-  authorizeRole("student"),
-  async (req, res) => {
+  authorizeRole("lecturer", "ta"),
+  async (req, res, next) => {
     try {
-      const studentId = req.user.userId;
+      const sectionId = Number(req.params.sectionId);
 
-      const enrollmentResult = await pool.query(
-        `
-        SELECT
-          e.section_id
-        FROM enrollment e
-        WHERE e.student_id = $1
-          AND e.status = 'active'
-        ORDER BY e.section_id
-        LIMIT 1
-        `,
-        [studentId]
-      );
-
-      if (enrollmentResult.rows.length === 0) {
-        return res.status(404).json({
+      // Validate sectionId
+      if (!Number.isInteger(sectionId) || sectionId <= 0) {
+        return res.status(400).json({
           success: false,
           error: {
-            code: "NO_ENROLLMENT",
-            message: "Student is not enrolled in any active section",
+            code: "VALIDATION_ERROR",
+            message: "Invalid sectionId",
           },
         });
       }
 
-      const sectionId = enrollmentResult.rows[0].section_id;
+      // 1. Make sure this section belongs to the logged-in instructor
+      const sectionResult = await pool.query(
+        `
+        SELECT
+          s.id AS section_id,
+          s.section_code,
+          s.course_id,
+          c.course_code,
+          c.name AS course_name
+        FROM sections s
+        JOIN courses c
+          ON c.id = s.course_id
+        WHERE s.id = $1
+          AND s.staff_id = $2
+        `,
+        [sectionId, req.user.userId]
+      );
 
+      if (sectionResult.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Section is not assigned to you",
+          },
+        });
+      }
+
+      const section = sectionResult.rows[0];
+
+      // 2. Get current week for this section
       const weekResult = await pool.query(
         `
         SELECT COALESCE(MAX(week_number), 1)::int AS week_number
@@ -1486,119 +1524,107 @@ app.get(
         [sectionId]
       );
 
-      const weekNumber = weekResult.rows[0].week_number;
+      const weekNumber =
+        Number(weekResult.rows[0]?.week_number) || 1;
 
-      const features = await getWeeklyRiskFeatures(
-        studentId,
-        sectionId,
-        weekNumber
+      // 3. Get all active students enrolled in this section
+      const studentsResult = await pool.query(
+        `
+        SELECT
+          u.id AS student_id,
+          u.name,
+          u.student_code
+        FROM enrollment e
+        JOIN users u
+          ON u.id = e.student_id
+        WHERE e.section_id = $1
+          AND e.status = 'active'
+          AND u.role = 'student'
+          AND u.status = 'active'
+        ORDER BY u.name
+        `,
+        [sectionId]
       );
 
+      // 4. Calculate AI risk for every student
+      const students = await Promise.all(
+        studentsResult.rows.map(async (student) => {
+          try {
+            const features = await getWeeklyRiskFeatures(
+              student.student_id,
+              sectionId,
+              weekNumber
+            );
+
+            const prediction = await predictWeeklyRisk(
+              features
+            );
+
+            const riskProbability =
+              Number(prediction.risk_probability);
+
+            return {
+              student_id: student.student_id,
+              student_code: student.student_code,
+              name: student.name,
+
+              risk_probability: riskProbability,
+
+              risk_percentage: Number(
+                (riskProbability * 100).toFixed(2)
+              ),
+
+              risk_band: prediction.risk_band,
+              is_flagged: prediction.is_flagged,
+
+              features,
+            };
+          } catch (error) {
+            console.error(
+              `AI risk failed for student ${student.student_id}:`,
+              error.message
+            );
+
+            return {
+              student_id: student.student_id,
+              student_code: student.student_code,
+              name: student.name,
+
+              risk_probability: null,
+              risk_percentage: null,
+              risk_band: "unavailable",
+              is_flagged: false,
+
+              error: "AI risk unavailable for this student",
+            };
+          }
+        })
+      );
+
+      // 5. Return risk results to the instructor
       return res.status(200).json({
         success: true,
         data: {
-          student_id: studentId,
-          section_id: sectionId,
+          section: {
+            section_id: section.section_id,
+            section_code: section.section_code,
+            course_id: section.course_id,
+            course_code: section.course_code,
+            course_name: section.course_name,
+          },
+
           week_number: weekNumber,
-          features,
+
+          students_count: students.length,
+
+          students,
         },
       });
     } catch (error) {
-      console.error(
-        "Get risk features error:",
-        error.message
-      );
-
-      return res.status(500).json({
-        success: false,
-        error: {
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Something went wrong",
-        },
-      });
+      next(error);
     }
   }
 );
-
-app.get(
-  "/api/v1/students/me/risk",
-  authenticateToken,
-  authorizeRole("student"),
-  async (req, res) => {
-    try {
-      const studentId = req.user.userId;
-
-      const enrollmentResult = await pool.query(
-        `
-        SELECT e.section_id
-        FROM enrollment e
-        WHERE e.student_id = $1
-          AND e.status = 'active'
-        ORDER BY e.section_id
-        LIMIT 1
-        `,
-        [studentId]
-      );
-    
-     if (enrollmentResult.rows.length === 0) {
-  return res.status(404).json({
-    success: false,
-    error: {
-      code: "NO_ENROLLMENT",
-      message: "Student has no active enrollment."
-    }
-  });
-}
-
-      const sectionId = enrollmentResult.rows[0].section_id;
-
-      const weekResult = await pool.query(
-        `
-        SELECT COALESCE(MAX(week_number), 1)::int AS week_number
-        FROM attendance_session ats
-        JOIN timetable t
-          ON t.id = ats.timetable_id
-        WHERE t.section_id = $1
-        `,
-        [sectionId]
-      );
-
-      const weekNumber = weekResult.rows[0].week_number;
-
-      const features = await getWeeklyRiskFeatures(
-        studentId,
-        sectionId,
-        weekNumber
-      );
-
-      const prediction = await predictWeeklyRisk(features);
-
-      return res.status(200).json({
-  success: true,
-  data: {
-    student_id: studentId,
-    section_id: sectionId,
-    week_number: weekNumber,
-    features,
-    risk: prediction,
-  },
-});
-    } catch (error) {
-  console.error("Weekly risk error:", error);
-  console.error("AI service error message:", error.message);
-  console.error("AI service error stack:", error.stack);
-
-  return res.status(502).json({
-    success: false,
-    error: {
-      code: "AI_SERVICE_ERROR",
-      message: "Unable to calculate weekly attendance risk."
-      }
-      });
-    }
-  }
-);
-
 
 app.post(
   "/api/v1/attendance/scan",
