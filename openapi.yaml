@@ -2,7 +2,10 @@ openapi: 3.0.3
 
 info:
   title: Smart Attendance API
-  description: API specification for the Smart Attendance system.
+  description: |
+    API specification for the Smart Attendance system.
+    All API endpoints are versioned under /api/v1.
+    Protected endpoints use JWT Bearer authentication.
   version: 1.0.0
 
 servers:
@@ -18,13 +21,22 @@ tags:
   - name: Staff
   - name: Timetable
   - name: Attendance Sessions
+  - name: Attendance
+  - name: Correction Requests
+  - name: Imports
+  - name: Audit Events
+  - name: AI Risk
+  - name: Health
 
 paths:
 
+# =========================
+# Authentication
+# =========================
+
   /api/v1/auth/login:
     post:
-      tags:
-        - Authentication
+      tags: [Authentication]
       summary: Login
       requestBody:
         required: true
@@ -35,18 +47,22 @@ paths:
       responses:
         '200':
           description: Login successful
-        '401':
-          description: Invalid email or password
         '400':
           description: Validation error
+        '401':
+          description: Invalid email or password
+        '500':
+          description: Internal server error
+
+# =========================
+# Users
+# =========================
 
   /api/v1/users:
     get:
-      tags:
-        - Users
+      tags: [Users]
       summary: Get all users
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Users retrieved successfully
@@ -54,40 +70,48 @@ paths:
           description: Authentication required
         '403':
           description: Admin access required
+        '500':
+          description: Internal server error
+
+# =========================
+# Courses
+# =========================
 
   /api/v1/courses:
     get:
-      tags:
-        - Courses
+      tags: [Courses]
       summary: Get all courses
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Courses retrieved successfully
         '401':
           description: Authentication required
+        '500':
+          description: Internal server error
+
+# =========================
+# Sections
+# =========================
 
   /api/v1/sections:
     get:
-      tags:
-        - Sections
+      tags: [Sections]
       summary: Get all sections
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Sections retrieved successfully
         '401':
           description: Authentication required
+        '500':
+          description: Internal server error
 
   /api/v1/sections/{sectionId}/students:
     get:
-      tags:
-        - Sections
+      tags: [Sections]
       summary: Get students enrolled in a section
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: sectionId
           in: path
@@ -101,14 +125,78 @@ paths:
           description: Authentication required
         '404':
           description: Section not found
+        '500':
+          description: Internal server error
+
+# =========================
+# Students
+# =========================
+
+  /api/v1/students/me:
+    get:
+      tags: [Students]
+      summary: Get current student's profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Student profile retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+        '500':
+          description: Internal server error
+    patch:
+      tags: [Students]
+      summary: Update current student's profile
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Student profile updated successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+        '500':
+          description: Internal server error
+
+  /api/v1/students/me/sections:
+    get:
+      tags: [Students]
+      summary: Get current student's sections
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Student sections retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+        '500':
+          description: Internal server error
 
   /api/v1/students/me/attendance:
     get:
-      tags:
-        - Students
+      tags: [Students]
       summary: Get current student's attendance records
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Attendance records retrieved successfully
@@ -116,14 +204,65 @@ paths:
           description: Authentication required
         '403':
           description: Student access required
+        '500':
+          description: Internal server error
+
+# -------------------------
+# AI Risk
+# -------------------------
+
+  /api/v1/students/me/risk-features:
+    get:
+      tags: [AI Risk]
+      summary: Get current student's attendance risk features
+      description: |
+        Calculates the attendance features used by the weekly
+        attendance risk model for the current student.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Risk features calculated successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+        '404':
+          description: Student is not enrolled in an active section
+        '500':
+          description: Internal server error
+
+# Weekly Risk Prediction
+
+  /api/v1/students/me/risk:
+    get:
+      tags: [AI Risk]
+      summary: Get current student's weekly attendance risk
+      description: |
+        Calculates the student's attendance risk features and sends
+        them to the weekly attendance risk AI service.
+        The result is advisory and does not automatically modify attendance.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Weekly attendance risk calculated successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+        '404':
+          description: Student is not enrolled in an active section
+        '502':
+          description: AI service unavailable or returned an error
+
+# =========================
+# Staff
+# =========================
 
   /api/v1/staff:
     get:
-      tags:
-        - Staff
+      tags: [Staff]
       summary: Get all teaching staff
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Staff retrieved successfully
@@ -131,27 +270,84 @@ paths:
           description: Authentication required
         '403':
           description: Admin access required
+        '500':
+          description: Internal server error
+
+  /api/v1/staff/me:
+    get:
+      tags: [Staff]
+      summary: Get current staff profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Staff profile retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Staff access required
+        '500':
+          description: Internal server error
+
+  /api/v1/staff/me/sections:
+    get:
+      tags: [Staff]
+      summary: Get sections assigned to current staff member
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Staff sections retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Staff access required
+        '500':
+          description: Internal server error
+
+  /api/v1/staff/me/timetable:
+    get:
+      tags: [Staff]
+      summary: Get current staff timetable
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Staff timetable retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Staff access required
+        '500':
+          description: Internal server error
+
+# =========================
+# Timetable
+# =========================
 
   /api/v1/timetable:
     get:
-      tags:
-        - Timetable
+      tags: [Timetable]
       summary: Get timetable
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Timetable retrieved successfully
         '401':
           description: Authentication required
+        '500':
+          description: Internal server error
+
+# =========================
+# Attendance Sessions
+# =========================
 
   /api/v1/attendance/sessions:
     post:
-      tags:
-        - Attendance Sessions
+      tags: [Attendance Sessions]
       summary: Open an attendance session
-      security:
-        - bearerAuth: []
+      description: |
+        Opens an attendance session for a scheduled timetable entry.
+        The session can only be opened when the current day and time
+        match the scheduled timetable.
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -162,7 +358,7 @@ paths:
         '201':
           description: Attendance session opened successfully
         '400':
-          description: Validation error
+          description: Validation error or session outside scheduled time
         '401':
           description: Authentication required
         '403':
@@ -171,14 +367,14 @@ paths:
           description: Timetable not found
         '409':
           description: Attendance session already open
+        '500':
+          description: Internal server error
 
   /api/v1/attendance/sessions/{sessionId}/close:
     patch:
-      tags:
-        - Attendance Sessions
+      tags: [Attendance Sessions]
       summary: Close an attendance session
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: sessionId
           in: path
@@ -196,9 +392,559 @@ paths:
           description: Attendance session not found
         '409':
           description: Attendance session is not open
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/sessions/{sessionId}/qr:
+    get:
+      tags: [Attendance Sessions]
+      summary: Generate the current rotating QR token
+      description: |
+        Generates a short-lived signed QR token for an open attendance session.
+        The QR token rotates using the session QR secret version.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: QR token generated successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: User did not open the session
+        '404':
+          description: Attendance session not found
+        '409':
+          description: Attendance session is not open
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/sessions/{sessionId}/roster:
+    get:
+      tags: [Attendance Sessions]
+      summary: Get attendance roster for a session
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Attendance roster retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Staff access required
+        '404':
+          description: Attendance session not found
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/sessions/{sessionId}/students/{studentId}:
+    patch:
+      tags: [Attendance Sessions]
+      summary: Manually update a student's attendance status
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualAttendanceUpdate'
+      responses:
+        '200':
+          description: Attendance status updated successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Staff access required
+        '404':
+          description: Session or student not found
+        '500':
+          description: Internal server error
+
+# =========================
+# Attendance
+# =========================
+
+  /api/v1/attendance/scan:
+    post:
+      tags: [Attendance]
+      summary: Validate a student's QR scan
+      description: |
+        Validates a short-lived signed QR token for the authenticated student.
+        The endpoint applies scan rate limiting and checks enrollment and
+        duplicate attendance.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+      responses:
+        '200':
+          description: QR scan validated and scan ticket generated
+        '400':
+          description: Validation error
+        '401':
+          description: Invalid or expired QR token
+        '403':
+          description: Student is not enrolled in the session section
+        '409':
+          description: Duplicate attendance
+        '429':
+          description: Too many scan attempts
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/check-in:
+    post:
+      tags: [Attendance]
+      summary: Record attendance after successful QR validation
+      description: |
+        Records attendance using the short-lived scan ticket returned
+        by the QR scan validation endpoint.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '201':
+          description: Attendance recorded successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Invalid or expired scan ticket
+        '409':
+          description: Duplicate attendance
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/records:
+    get:
+      tags: [Attendance]
+      summary: Get attendance records with filters
+      description: |
+        Retrieves attendance history.
+        Students are restricted to their own records.
+        Lecturers and TAs are restricted to records belonging to their assigned sections.
+        Admins and auditors can access attendance records according to their authorized role.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: course_id
+          in: query
+          schema: { type: integer }
+        - name: section_id
+          in: query
+          schema: { type: integer }
+        - name: lecturer_id
+          in: query
+          schema: { type: integer }
+        - name: student_id
+          in: query
+          schema: { type: integer }
+        - name: from_date
+          in: query
+          schema: { type: string, format: date }
+        - name: to_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Attendance records retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Access denied
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/records/export:
+    get:
+      tags: [Attendance]
+      summary: Export attendance records
+      description: |
+        Exports attendance records using the same filtering options
+        available in the attendance records endpoint.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, pdf]
+        - name: course_id
+          in: query
+          schema: { type: integer }
+        - name: section_id
+          in: query
+          schema: { type: integer }
+        - name: lecturer_id
+          in: query
+          schema: { type: integer }
+        - name: student_id
+          in: query
+          schema: { type: integer }
+        - name: from_date
+          in: query
+          schema: { type: string, format: date }
+        - name: to_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Attendance records exported successfully
+        '400':
+          description: Invalid export format
+        '401':
+          description: Authentication required
+        '403':
+          description: Access denied
+        '500':
+          description: Internal server error
+
+# =========================
+# Correction Requests
+# =========================
+
+  /api/v1/attendance/correction-requests:
+    post:
+      tags: [Correction Requests]
+      summary: Create an attendance correction request
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectionRequest'
+      responses:
+        '201':
+          description: Correction request created successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+        '404':
+          description: Attendance event not found
+        '409':
+          description: Pending correction request already exists
+        '500':
+          description: Internal server error
+    get:
+      tags: [Correction Requests]
+      summary: Get correction requests
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        '200':
+          description: Correction requests retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Access denied
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/correction-requests/me:
+    get:
+      tags: [Correction Requests]
+      summary: Get current student's correction requests
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Correction requests retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Student access required
+        '500':
+          description: Internal server error
+
+  /api/v1/attendance/correction-requests/{requestId}:
+    patch:
+      tags: [Correction Requests]
+      summary: Review an attendance correction request
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectionReviewRequest'
+      responses:
+        '200':
+          description: Correction request reviewed successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Staff access required
+        '404':
+          description: Correction request not found
+        '500':
+          description: Internal server error
+
+# =========================
+# Imports
+# =========================
+
+  /api/v1/imports/rooms:
+    post:
+      tags: [Imports]
+      summary: Import rooms from CSV
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CsvUpload'
+      responses:
+        '200':
+          description: Rooms imported successfully
+        '400':
+          description: Invalid CSV file or validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+        '500':
+          description: Internal server error
+
+  /api/v1/imports/courses:
+    post:
+      tags: [Imports]
+      summary: Import courses from CSV
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CsvUpload'
+      responses:
+        '200':
+          description: Courses imported successfully
+        '400':
+          description: Invalid CSV file or validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+        '500':
+          description: Internal server error
+
+  /api/v1/imports/teaching-staff:
+    post:
+      tags: [Imports]
+      summary: Import teaching staff from CSV
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CsvUpload'
+      responses:
+        '200':
+          description: Teaching staff imported successfully
+        '400':
+          description: Invalid CSV file or validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+        '500':
+          description: Internal server error
+
+  /api/v1/imports/students:
+    post:
+      tags: [Imports]
+      summary: Import students from CSV
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CsvUpload'
+      responses:
+        '200':
+          description: Students imported successfully
+        '400':
+          description: Invalid CSV file or validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+        '500':
+          description: Internal server error
+
+  /api/v1/imports/sections:
+    post:
+      tags: [Imports]
+      summary: Import sections from CSV
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CsvUpload'
+      responses:
+        '200':
+          description: Sections imported successfully
+        '400':
+          description: Invalid CSV file or validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+        '500':
+          description: Internal server error
+
+  /api/v1/imports/enrollment:
+    post:
+      tags: [Imports]
+      summary: Import enrollment records from CSV
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CsvUpload'
+      responses:
+        '200':
+          description: Enrollment imported successfully
+        '400':
+          description: Invalid CSV file or validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+        '500':
+          description: Internal server error
+
+  /api/v1/imports/timetable:
+    post:
+      tags: [Imports]
+      summary: Import timetable records from CSV
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CsvUpload'
+      responses:
+        '200':
+          description: Timetable imported successfully
+        '400':
+          description: Invalid CSV file or validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin access required
+        '500':
+          description: Internal server error
+
+# =========================
+# Audit Events
+# =========================
+
+  /api/v1/audit-events:
+    get:
+      tags: [Audit Events]
+      summary: Get audit events
+      description: |
+        Retrieves audit history.
+        Access is restricted to auditors and admins.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: entity_type
+          in: query
+          schema: { type: string }
+        - name: entity_id
+          in: query
+          schema: { type: integer }
+        - name: actor_id
+          in: query
+          schema: { type: integer }
+        - name: from_date
+          in: query
+          schema: { type: string, format: date }
+        - name: to_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Audit events retrieved successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Auditor or admin access required
+        '500':
+          description: Internal server error
+
+# =========================
+# Health
+# =========================
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Check backend health
+      responses:
+        '200':
+          description: Backend is running
+        '500':
+          description: Backend health check failed
+
+# =========================
+# Components
+# =========================
 
 components:
-
   securitySchemes:
     bearerAuth:
       type: http
@@ -206,12 +952,9 @@ components:
       bearerFormat: JWT
 
   schemas:
-
     LoginRequest:
       type: object
-      required:
-        - email
-        - password
+      required: [email, password]
       properties:
         email:
           type: string
@@ -224,9 +967,66 @@ components:
 
     OpenSessionRequest:
       type: object
-      required:
-        - timetable_id
+      required: [timetable_id]
       properties:
         timetable_id:
           type: integer
           example: 5
+
+    ManualAttendanceUpdate:
+      type: object
+      required: [attendance_status, reason]
+      properties:
+        attendance_status:
+          type: string
+          enum: [present, absent, excused]
+        reason:
+          type: string
+          example: Student provided an approved excuse.
+
+    ScanRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: Short-lived signed QR token.
+
+    CheckInRequest:
+      type: object
+      required: [scanTicket]
+      properties:
+        scanTicket:
+          type: string
+          description: Short-lived ticket returned after QR validation.
+
+    CorrectionRequest:
+      type: object
+      required: [attendance_event_id, evidence]
+      properties:
+        attendance_event_id:
+          type: integer
+          example: 123
+        evidence:
+          type: string
+          example: Student submitted evidence for attendance correction.
+
+    CorrectionReviewRequest:
+      type: object
+      required: [status, reason]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+        reason:
+          type: string
+          example: Evidence verified by lecturer.
+
+    CsvUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: CSV file to import.
