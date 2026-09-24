@@ -19,7 +19,7 @@ const app = express();
 // SWAGGER UI
 // =========================================================
 
-const openapiPath = path.join(__dirname, "..", "openapi.yaml");
+const openapiPath = path.join(__dirname,"openapi.yaml");
 const openapiFile = fs.readFileSync(openapiPath, "utf8");
 const openapiDocument = yaml.load(openapiFile);
 
@@ -4564,8 +4564,12 @@ app.get("/health", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
 
 
