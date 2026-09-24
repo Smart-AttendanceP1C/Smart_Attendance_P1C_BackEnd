@@ -4,8 +4,9 @@
     {
       "src": "server.js",
       "use": "@vercel/node",
-      "config": { "includeFiles": ["openapi.yaml"] }
+      "config": {
+        "includeFiles": ["openapi.yaml"]
+      }
     }
-  ],
-  "routes": [{ "src": "/(.*)", "dest": "server.js" }]
+  ]
 }
