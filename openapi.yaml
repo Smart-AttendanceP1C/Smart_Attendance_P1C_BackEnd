@@ -9,8 +9,8 @@ info:
   version: 1.0.0
 
 servers:
-  - url: http://localhost:3000
-    description: Local development server
+  - url: https://comfortable-having-packages-widespread.trycloudflare.com
+    description: Shared development server
 
 tags:
   - name: Authentication
@@ -51,6 +51,8 @@ paths:
           description: Validation error
         '401':
           description: Invalid email or password
+        '403':
+          description: User account is inactive  
         '500':
           description: Internal server error
 
@@ -144,6 +146,8 @@ paths:
           description: Authentication required
         '403':
           description: Student access required
+        '404':
+          description: Student profile not found
         '500':
           description: Internal server error
     patch:
@@ -230,12 +234,14 @@ paths:
       responses:
         '200':
           description: Weekly attendance risk retrieved successfully
+        '400':
+          description: Invalid sectionId
         '401':
           description: Authentication required
         '403':
-          description: Staff access required or section is not assigned to the current staff member
-        '404':
-          description: Section not found
+          description: |
+            Staff access required, or the section either does not exist
+            or is not assigned to the current staff member.
         '500':
           description: Internal server error
 # =========================
@@ -269,6 +275,8 @@ paths:
           description: Authentication required
         '403':
           description: Staff access required
+        '404':
+          description: Staff member not found  
         '500':
           description: Internal server error
 
@@ -463,6 +471,8 @@ paths:
           description: Staff access required
         '404':
           description: Session or student not found
+        '409':
+          description: Attendance session is not open
         '500':
           description: Internal server error
 
@@ -494,6 +504,8 @@ paths:
           description: Invalid or expired QR token
         '403':
           description: Student is not enrolled in the session section
+        '404':
+          description: Attendance session not found
         '409':
           description: Duplicate attendance
         '429':
@@ -522,6 +534,10 @@ paths:
           description: Validation error
         '401':
           description: Invalid or expired scan ticket
+        '403':
+          description: Scan ticket does not belong to this student
+        '404':
+          description: Attendance session not found
         '409':
           description: Duplicate attendance
         '500':
@@ -577,10 +593,12 @@ paths:
       parameters:
         - name: format
           in: query
-          required: true
+          required: false
+          description: Defaults to csv when omitted.
           schema:
-            type: string
-            enum: [csv, pdf]
+           type: string
+           enum: [csv, pdf]
+           default: csv
         - name: course_id
           in: query
           schema: { type: integer }
@@ -704,6 +722,8 @@ paths:
           description: Staff access required
         '404':
           description: Correction request not found
+        '409':
+          description: This correction request was already reviewed
         '500':
           description: Internal server error
 
@@ -769,7 +789,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CsvUpload'
       responses:
-        '200':
+        '201':
           description: Teaching staff imported successfully
         '400':
           description: Invalid CSV file or validation error
@@ -792,7 +812,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CsvUpload'
       responses:
-        '200':
+        '201':
           description: Students imported successfully
         '400':
           description: Invalid CSV file or validation error
@@ -815,7 +835,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CsvUpload'
       responses:
-        '200':
+        '201':
           description: Sections imported successfully
         '400':
           description: Invalid CSV file or validation error
@@ -838,7 +858,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CsvUpload'
       responses:
-        '200':
+        '201':
           description: Enrollment imported successfully
         '400':
           description: Invalid CSV file or validation error
@@ -861,7 +881,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CsvUpload'
       responses:
-        '200':
+        '201':
           description: Timetable imported successfully
         '400':
           description: Invalid CSV file or validation error
