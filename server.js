@@ -332,13 +332,14 @@ app.get(
 app.get(
   "/api/v1/sections/:sectionId/students",
   authenticateToken,
+  authorizeRole("lecturer", "ta", "admin"),
   async (req, res) => {
     const { sectionId } = req.params;
 
     try {
       const sectionResult = await pool.query(
         `
-        SELECT id
+        SELECT id, staff_id
         FROM sections
         WHERE id = $1
         `,
@@ -351,6 +352,23 @@ app.get(
           error: {
             code: "SECTION_NOT_FOUND",
             message: "Section not found",
+          },
+        });
+      }
+
+      const section = sectionResult.rows[0];
+
+      // Lecturer/TA can only view the roster of sections
+      // they are assigned to. Admin can view any section.
+      if (
+        req.user.role !== "admin" &&
+        Number(section.staff_id) !== Number(req.user.userId)
+      ) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Section is not assigned to you",
           },
         });
       }
@@ -4197,7 +4215,7 @@ app.post(
             continue;
           }
 
-          await pool.query(
+                    const enrollmentResult = await pool.query(
             `
             INSERT INTO enrollment
               (student_id, section_id, enrolled_at, status)
@@ -4205,19 +4223,21 @@ app.post(
               ($1, $2, CURRENT_TIMESTAMP, 'active')
             ON CONFLICT (student_id, section_id)
             DO NOTHING
-             RETURNING id
+            RETURNING id
             `,
             [
               student.rows[0].id,
               section.rows[0].id,
             ]
           );
+
           if (enrollmentResult.rows.length === 0) {
-  rejected.push({
-    row: rowNumber,
-    reason: "Student is already enrolled in this section",
-  });
-  continue;
+            rejected.push({
+              row: rowNumber,
+              reason: "Student is already enrolled in this section",
+            });
+            continue;
+          
 }
 
           imported++;
@@ -4567,5 +4587,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
